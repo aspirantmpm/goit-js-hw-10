@@ -1,25 +1,93 @@
 import './css/styles.css';
+import Notiflix from 'notiflix';
+import debounce from 'lodash.debounce';
+import { fetchCountries } from './fetchCountries';
+// console.log(fetchCountries);
 
 const DEBOUNCE_DELAY = 300;
 
-import Notiflix from '../node_modules/notiflix/';
+const searchBox = document.querySelector('#search-box');
+const countryList = document.querySelector('.country-list');
+const countryInfo = document.querySelector('.country-info');
 
-const searchBox = document.querySelector('.search-box');
+searchBox.addEventListener('input', debounce(onSearch, DEBOUNCE_DELAY));
 
-searchBox.addEventListener("input", onInput)
+function onSearch(evt){
+  evt.preventDefault()
+  const searchCountry = evt.target.value.trim();  
+  // console.log(searchCountry);
 
-function onInput(event) {
-  event.preventDefault();
-};
+  if (!searchCountry) {
+    resetSearch(countryList);
+    resetSearch(countryInfo);
+    return;
+  }
 
-function fetchCountries(name) {
-    const BASE_URL = 'https://restcountries.com/v2/all'
-    return fetch(`${BASE_URL}?fields=${name},capital,population,flags,languages`).then(resp => {
-      if (!resp.ok) {
-        throw new Error(resp.statusText);
+  fetchCountries(searchCountry)
+    .then(resp => {
+      if (resp.length > 10) {
+        Notiflix.Notify.info(
+          'Too many matches found. Please enter a more specific name'
+        );
+
+        resetSearch(countryList);
+        resetSearch(countryInfo);
+
+        return;
       }
 
-      return resp.json();
+      if (resp.length >= 2 && resp.length <= 10) {
+        resetSearch(countryInfo);
+        setMarkup(countryList, countryListMarkup(resp));
+
+        return;
+      }
+
+      if (resp.length === 1) {
+        resetSearch(countryList);
+        setMarkup(countryInfo, countryInfoMarkup(resp));
+
+        return;
+      }
+    })
+    .catch(() => {
+      Notiflix.Notify.failure('Oops, there is no country with that name');
+      resetSearch(countryList);
+      resetSearch(countryInfo);
     });
 }
-fetchCountries(name).then(data => console.log(data));
+
+function resetSearch(ref) {
+  if (ref.children.length) {
+    ref.innerHTML = '';
+  }
+  return;
+}
+
+function setMarkup(ref, markup) {
+  ref.innerHTML = markup;
+}
+
+function countryListMarkup(countries) {
+  return countries
+    .map(country => {
+      return `<li><img src="${country.flags.svg}" alt="${country.name.common} flag" width="50" height="25"></img> <p>${country.name.official}</p>
+              </li>`;
+    })
+    .join('');
+}
+
+function countryInfoMarkup(countries) {
+  return countries
+    .map(country => {
+      return `<img 
+    src="${country.flags.svg}" alt="${country.name.common}" 
+    width="50" height="25" />
+    <h1>${country.name.common}</h1>
+    <p><b>Capital:</b> ${country.capital}</p>
+    <p><b>Population:</b> ${country.population}</p>
+    <p><b>Languages:</b> ${Object.values(country.languages)}</p>`;
+    })
+    .join('');
+}
+
